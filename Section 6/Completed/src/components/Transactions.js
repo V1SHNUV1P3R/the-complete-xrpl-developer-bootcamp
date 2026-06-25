@@ -9,17 +9,14 @@ import "./transactions.scss";
 function Transactions() {
   const { transactions, refreshTransactions } = useAccounts();
 
-  const handleTransactionsRefresh = () => {
-    refreshTransactions();
-  };
-
+  // This panel shows the recent payment history for the selected wallet.
   return (
     <div className="transactions">
       <label>
         Transactions
         <FontAwesomeIcon
           icon={faRefresh}
-          onClick={handleTransactionsRefresh}
+          onClick={refreshTransactions}
         />
       </label>
       <ul>

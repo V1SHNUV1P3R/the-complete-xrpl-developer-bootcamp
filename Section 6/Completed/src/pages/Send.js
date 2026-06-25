@@ -7,50 +7,38 @@ import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowTurnUp } from "@fortawesome/free-solid-svg-icons/faArrowTurnUp";
+import { faArrowTurnUp } from "@fortawesome/free-solid-svg-icons";
 
 import Spinner from "../components/Spinner";
 
 import "./send.scss";
 
 function Send() {
-  const [amount, setAmount] = useState(0);
+  const [amount, setAmount] = useState("");
   const [destination, setDestination] = useState("");
-  const [destinationTag, setDestinationTag] = useState();
+  const [destinationTag, setDestinationTag] = useState("");
   const [showModal, setShowModal] = useState(false);
 
   const navigate = useNavigate();
-
   const { sendXRP } = useAccounts();
 
-  const handleSendXRP = async (event) => {
+  // Step 1: gather the form values, then step 2: submit them to the wallet context.
+  const handleSubmit = async (event) => {
     event.preventDefault();
-
-    // Show modal
     setShowModal(true);
 
     try {
-      // Send the XRP
       await sendXRP(amount, destination, destinationTag);
     } catch (error) {
       console.error(error);
     } finally {
-      // Close modal
       setShowModal(false);
-
-      // Navigate to home
       navigate("/");
     }
   };
-  const handleAmountChange = (event) => {
-    setAmount(event.target.value);
-  };
-  const handleDestinationChange = (event) => {
-    setDestination(event.target.value);
-  };
-  const handleDestinationTagChange = (event) => {
-    setDestinationTag(event.target.value);
-  };
+
+  const handleFieldChange = (setter) => (event) => setter(event.target.value);
+
   return (
     <>
       <div className="send">
@@ -59,7 +47,7 @@ function Send() {
           <span>Send XRP</span>
         </h1>
 
-        <Form onSubmit={handleSendXRP}>
+        <Form onSubmit={handleSubmit}>
           <Form.Group
             className="form-group"
             controlId="amount"
@@ -69,7 +57,7 @@ function Send() {
               type="text"
               placeholder="Amount of XRP to send"
               required
-              onChange={handleAmountChange}
+              onChange={handleFieldChange(setAmount)}
             ></Form.Control>
           </Form.Group>
 
@@ -82,7 +70,7 @@ function Send() {
               type="text"
               placeholder="Destination address"
               required
-              onChange={handleDestinationChange}
+              onChange={handleFieldChange(setDestination)}
             ></Form.Control>
           </Form.Group>
 
@@ -94,7 +82,7 @@ function Send() {
             <Form.Control
               type="text"
               placeholder="Destination tag"
-              onChange={handleDestinationTagChange}
+              onChange={handleFieldChange(setDestinationTag)}
             ></Form.Control>
           </Form.Group>
 

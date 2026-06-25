@@ -8,25 +8,22 @@ import { faWallet, faGear } from "@fortawesome/free-solid-svg-icons";
 function Header() {
   const navigate = useNavigate();
 
-  const handleSwitchToHome = () => {
-    navigate("/");
-  };
-  const handleSwitchToSettings = () => {
-    navigate("/manage-account");
-  };
+  // The header is just a simple route switcher for the main parts of the app.
+  const goHome = () => navigate("/");
+  const openAccounts = () => navigate("/manage-account");
 
   return (
     <header>
       <div
         className="header-logo"
-        onClick={handleSwitchToHome}
+        onClick={goHome}
       >
         <FontAwesomeIcon icon={faWallet} />
         <span className="project-name">XRPL Wallet 1.0</span>
       </div>
       <div
         className="header-settings"
-        onClick={handleSwitchToSettings}
+        onClick={openAccounts}
       >
         <FontAwesomeIcon icon={faGear} />
       </div>

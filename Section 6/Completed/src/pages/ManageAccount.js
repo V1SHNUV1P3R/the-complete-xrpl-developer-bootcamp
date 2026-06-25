@@ -9,13 +9,9 @@ import "./manage-account.scss";
 function ManageAccount() {
   const { accounts, removeAccount, selectWallet } = useAccounts();
 
-  const handleSelectAccount = (account) => {
-    selectWallet(account);
-  };
-
-  const handleRemoveAccount = (account) => {
-    removeAccount(account);
-  };
+  // This page is just a simple list of saved accounts plus action buttons.
+  const chooseAccount = (account) => selectWallet(account);
+  const deleteAccount = (account) => removeAccount(account);
 
   return (
     <div className="manage-accounts">
@@ -31,13 +27,13 @@ function ManageAccount() {
             <div className="buttons-container">
               <Button
                 variant="primary"
-                onClick={() => handleSelectAccount(account)}
+                onClick={() => chooseAccount(account)}
               >
                 <FontAwesomeIcon icon={faThumbsUp} />
               </Button>
               <Button
                 variant="danger"
-                onClick={() => handleRemoveAccount(account)}
+                onClick={() => deleteAccount(account)}
               >
                 <FontAwesomeIcon icon={faTrash} />
               </Button>

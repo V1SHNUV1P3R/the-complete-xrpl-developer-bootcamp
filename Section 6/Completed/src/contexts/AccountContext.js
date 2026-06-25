@@ -2,231 +2,245 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
 import { Client, dropsToXrp, Wallet, xrpToDrops } from "xrpl";
 import { ToastManager } from "../components/Toast";
 
-// Create a context
 const AccountContext = createContext();
 
-// Provider component
+const STORAGE_KEYS = {
+  accounts: "accounts",
+  selectedAccount: "selectedAccount",
+};
+
+// This provider acts as the main wallet controller.
+// It keeps the wallet state in one place and exposes simple actions for the pages.
 export const AccountProvider = ({ children }) => {
-  const client = useRef();
+  const clientRef = useRef(null);
   const [accounts, setAccounts] = useState([]);
   const [selectedWallet, setSelectedWallet] = useState();
   const [balance, setBalance] = useState();
   const [transactions, setTransactions] = useState([]);
   const [reserve, setReserve] = useState();
 
-  const _getBalance = useCallback(async (account) => {
-    if (account) {
-      // Create a connection to the ledger
-      const client = new Client(process.env.REACT_APP_NETWORK);
-      await client.connect();
+  const network = process.env.REACT_APP_NETWORK;
 
-      // Get the account balance from the latest ledger account info
+  // One small helper keeps the XRPL client creation consistent.
+  const createClient = useCallback(() => new Client(network), [network]);
+
+  // Step 1: read the current balance from the ledger.
+  const getAccountBalance = useCallback(
+    async (account) => {
+      if (!account) {
+        setBalance(undefined);
+        return;
+      }
+
+      const ledgerClient = createClient();
+
       try {
-        const response = await client.request({
+        await ledgerClient.connect();
+        const response = await ledgerClient.request({
           command: "account_info",
           account: account.address,
-          ledger_index: "validated", // specify a ledger index OR a shortcut like validated, current or closed.
+          ledger_index: "validated",
         });
 
-        // Convert the balance returned in drops to XRP
         setBalance(dropsToXrp(response.result.account_data.Balance));
       } catch (error) {
         console.log(error);
-        setBalance(); // Set balance to undefined - account doesn't exist
+        setBalance(undefined);
       } finally {
-        client.disconnect();
+        await ledgerClient.disconnect();
       }
-    }
-  }, []);
+    },
+    [createClient]
+  );
 
-  const _getTransactions = useCallback(async (account) => {
-    if (account) {
-      // Create client connection
-      const client = new Client(process.env.REACT_APP_NETWORK);
-      await client.connect();
+  // Step 2: read the last transactions for the selected account.
+  const getAccountTransactions = useCallback(
+    async (account) => {
+      if (!account) {
+        setTransactions([]);
+        return;
+      }
+
+      const ledgerClient = createClient();
 
       try {
-        const allTransactions = await client.request({
+        await ledgerClient.connect();
+        const response = await ledgerClient.request({
           command: "account_tx",
           account: account.address,
-          ledger_index_min: -1, // Optional - Use to specify the earliest ledger to include transactions from. -1 = earliest validated ledger.
-          ledger_index_max: -1, // Optional - Use to specify the newest ledger to include transactions from. -1 = newest validated ledger.
-          limit: 20, // Optional - limit the number of transactions to receive.
-          forward: false, // Optional - Returns the transactions with the oldest ledger first when set to true
+          ledger_index_min: -1,
+          ledger_index_max: -1,
+          limit: 20,
+          forward: false,
         });
 
-        // Filter the transactions - we only care about payments in XRP.
-        const filteredTransactions = allTransactions.result.transactions
-          .filter((transaction) => {
-            // Filter for Payment transactions only.
-            if (transaction.tx.TransactionType !== "Payment") return false;
-
-            // Filter for only XRP payments.
-            return typeof transaction.tx.Amount === "string";
-          })
-          .map((transaction) => {
-            return {
-              account: transaction.tx.Account,
-              destination: transaction.tx.Destination,
-              hash: transaction.tx.hash,
-              direction: transaction.tx.Account === account.address ? "Sent" : "Received",
-              date: new Date((transaction.tx.date + 946684800) * 1000),
-              transactionResult: transaction.meta.TransactionResult,
-              amount:
-                transaction.meta.TransactionResult === "tesSUCCESS"
-                  ? dropsToXrp(transaction.meta?.delivered_amount)
-                  : 0,
-            };
-          });
+        const filteredTransactions = response.result.transactions
+          .filter(({ tx }) => tx.TransactionType === "Payment" && typeof tx.Amount === "string")
+          .map(({ tx, meta }) => ({
+            account: tx.Account,
+            destination: tx.Destination,
+            hash: tx.hash,
+            direction: tx.Account === account.address ? "Sent" : "Received",
+            date: new Date((tx.date + 946684800) * 1000),
+            transactionResult: meta.TransactionResult,
+            amount:
+              meta.TransactionResult === "tesSUCCESS" ? dropsToXrp(meta?.delivered_amount) : 0,
+          }));
 
         setTransactions(filteredTransactions);
       } catch (error) {
         console.log(error);
         setTransactions([]);
       } finally {
-        await client.disconnect();
+        await ledgerClient.disconnect();
       }
-    }
-  }, []);
+    },
+    [createClient]
+  );
 
+  // Step 3: refresh the balance and transaction list together.
+  const refreshAccountData = useCallback(
+    async (account) => {
+      await Promise.all([getAccountBalance(account), getAccountTransactions(account)]);
+    },
+    [getAccountBalance, getAccountTransactions]
+  );
+
+  // On first load, restore saved wallets and the last selected wallet.
   useEffect(() => {
-    const storedAccounts = localStorage.getItem("accounts");
-    const storedDefault = localStorage.getItem("selectedAccount");
+    const storedAccounts = localStorage.getItem(STORAGE_KEYS.accounts);
+    const storedDefault = localStorage.getItem(STORAGE_KEYS.selectedAccount);
+
     if (storedAccounts) {
       setAccounts(JSON.parse(storedAccounts));
     }
+
     if (storedDefault) {
       setSelectedWallet(JSON.parse(storedDefault));
     }
 
-    const getCurrentReserve = async () => {
-      // Create a connection to the ledger
-      const client = new Client(process.env.REACT_APP_NETWORK);
-      await client.connect();
+    const loadReserve = async () => {
+      const ledgerClient = createClient();
 
-      // Get the account balance from the latest ledger account info
       try {
-        const response = await client.request({
-          command: "server_info",
-        });
-
-        const reserve = response.result.info.validated_ledger.reserve_base_xrp;
-        setReserve(reserve);
+        await ledgerClient.connect();
+        const response = await ledgerClient.request({ command: "server_info" });
+        setReserve(response.result.info.validated_ledger.reserve_base_xrp);
       } catch (error) {
         console.log(error);
       } finally {
-        client.disconnect();
+        await ledgerClient.disconnect();
       }
     };
 
-    getCurrentReserve();
-  }, []);
+    loadReserve();
+  }, [createClient]);
 
+  // Keep listening to the selected wallet so the UI updates when new transactions arrive.
   useEffect(() => {
-    // Open a web socket to listen for transactions
-    // This web socket will be created once and re-used
-    if (!client.current) {
-      client.current = new Client(process.env.REACT_APP_NETWORK);
+    if (!clientRef.current) {
+      clientRef.current = createClient();
     }
+
     const onTransaction = async (event) => {
+      if (!selectedWallet) return;
+
+      const amount = dropsToXrp(event.transaction.Amount || 0);
+
       if (event.meta.TransactionResult === "tesSUCCESS") {
         if (event.transaction.Account === selectedWallet.address) {
-          // Sent
-          ToastManager.addToast(`Successfully sent ${dropsToXrp(event.transaction.Amount)} XRP`);
+          ToastManager.addToast(`Successfully sent ${amount} XRP`);
         } else if (event.transaction.Destination === selectedWallet.address) {
-          ToastManager.addToast(
-            `Successfully received ${dropsToXrp(event.transaction.Amount)} XRP`
-          );
+          ToastManager.addToast(`Successfully received ${amount} XRP`);
         }
       } else {
-        //Handle the failed transaction
         ToastManager.addToast("Failed");
       }
-      _getBalance(selectedWallet);
-      _getTransactions(selectedWallet);
+
+      await refreshAccountData(selectedWallet);
     };
 
-    const listenToWallet = async () => {
-      try {
-        if (!client.current.isConnected()) await client.current.connect();
-        client.current.on("transaction", onTransaction);
+    const subscribeToWallet = async () => {
+      if (!selectedWallet) return;
 
-        await client.current.request({
+      try {
+        if (!clientRef.current.isConnected()) {
+          await clientRef.current.connect();
+        }
+
+        clientRef.current.on("transaction", onTransaction);
+
+        await clientRef.current.request({
           command: "subscribe",
-          accounts: [selectedWallet?.address],
+          accounts: [selectedWallet.address],
         });
       } catch (error) {
         console.error(error);
-      } // Note we don;t close the connection
-    };
-
-    selectedWallet && listenToWallet();
-    _getBalance(selectedWallet);
-    _getTransactions(selectedWallet);
-
-    return () => {
-      // Clean-up if there is a previous connection open
-      if (client.current.isConnected()) {
-        (async () => {
-          client.current.removeListener("transaction", onTransaction);
-          await client.current.request({
-            command: "unsubscribe",
-            accounts: [selectedWallet.address],
-          });
-        })();
       }
     };
-  }, [selectedWallet, _getBalance, _getTransactions]);
+
+    subscribeToWallet();
+    refreshAccountData(selectedWallet);
+
+    return () => {
+      if (clientRef.current?.isConnected() && selectedWallet?.address) {
+        clientRef.current.removeListener("transaction", onTransaction);
+        clientRef.current.request({
+          command: "unsubscribe",
+          accounts: [selectedWallet.address],
+        });
+      }
+    };
+  }, [selectedWallet, refreshAccountData, createClient]);
 
   const refreshBalance = () => {
-    _getBalance(selectedWallet);
+    getAccountBalance(selectedWallet);
   };
 
   const refreshTransactions = () => {
-    _getTransactions(selectedWallet);
+    getAccountTransactions(selectedWallet);
   };
 
   const selectWallet = (account) => {
-    localStorage.setItem("selectedAccount", JSON.stringify(account));
+    localStorage.setItem(STORAGE_KEYS.selectedAccount, JSON.stringify(account));
     setSelectedWallet(account);
   };
 
+  // Add a wallet to the list, but avoid duplicates.
   const addAccount = (account) => {
     setAccounts((prevAccounts) => {
-      const isDuplicate = prevAccounts.some((a) => a.address === account.address);
+      const isDuplicate = prevAccounts.some((existingAccount) => existingAccount.address === account.address);
 
       if (isDuplicate) {
-        // TODO: Update to use notifications system
         console.log("Account duplication: not added");
         return prevAccounts;
-      } else {
-        const updatedAccounts = [...prevAccounts, account];
-        localStorage.setItem("accounts", JSON.stringify(updatedAccounts));
-        return updatedAccounts;
       }
-    });
-  };
 
-  const removeAccount = (account) => {
-    setAccounts((prevAccounts) => {
-      const updatedAccounts = prevAccounts.filter((a) => a !== account);
-      localStorage.setItem("accounts", JSON.stringify(updatedAccounts));
+      const updatedAccounts = [...prevAccounts, account];
+      localStorage.setItem(STORAGE_KEYS.accounts, JSON.stringify(updatedAccounts));
       return updatedAccounts;
     });
   };
 
+  // Remove a wallet from the saved list.
+  const removeAccount = (account) => {
+    setAccounts((prevAccounts) => {
+      const updatedAccounts = prevAccounts.filter((existingAccount) => existingAccount !== account);
+      localStorage.setItem(STORAGE_KEYS.accounts, JSON.stringify(updatedAccounts));
+      return updatedAccounts;
+    });
+  };
+
+  // Send XRP by building a payment, signing it, and submitting it to the ledger.
   const sendXRP = async (amount, destination, destinationTag) => {
     if (!selectedWallet) throw new Error("No wallet selected");
 
-    // Get wallet from seed
     const wallet = Wallet.fromSeed(selectedWallet.seed);
-
-    // New ledger connection
-    const client = new Client(process.env.REACT_APP_NETWORK);
-    await client.connect();
+    const ledgerClient = createClient();
 
     try {
-      // Create payment object
+      await ledgerClient.connect();
+
       const payment = {
         TransactionType: "Payment",
         Account: wallet.classicAddress,
@@ -238,22 +252,15 @@ export const AccountProvider = ({ children }) => {
         payment.DestinationTag = parseInt(destinationTag);
       }
 
-      // Prepare transaction
-      const prepared = await client.autofill(payment);
-
-      // Sign the transaction
+      const prepared = await ledgerClient.autofill(payment);
       const signed = wallet.sign(prepared);
-
-      // Submit transaction and wait before running into finally block
-      await client.submitAndWait(signed.tx_blob);
+      await ledgerClient.submitAndWait(signed.tx_blob);
     } catch (error) {
       console.error(error);
     } finally {
-      await client.disconnect();
-
-      // Update the selectedWallet balance and transactions state
-      refreshBalance(selectedWallet);
-      refreshTransactions(selectedWallet);
+      await ledgerClient.disconnect();
+      refreshBalance();
+      refreshTransactions();
     }
   };
 
@@ -278,5 +285,4 @@ export const AccountProvider = ({ children }) => {
   );
 };
 
-// Custom hook
 export const useAccounts = () => useContext(AccountContext);

@@ -28,6 +28,6 @@
     "test": ""
   },
   "dependencies": {
-    "xrpl": "^2.14.0"
+    "xrpl": "^2.14.3"
   }
 }

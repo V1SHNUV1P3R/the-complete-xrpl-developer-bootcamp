@@ -15,12 +15,10 @@ function Main() {
   const { selectedWallet } = useAccounts();
   const [showReceiveXRP, setShowReceiveXRP] = useState(false);
 
-  const handleRequestXRP = () => {
-    setShowReceiveXRP(true);
-  };
-  const handleHideReceiveXRP = () => {
-    setShowReceiveXRP(false);
-  };
+  // The home screen is a simple dashboard: actions first, then balance, then history.
+  const openReceiveModal = () => setShowReceiveXRP(true);
+  const closeReceiveModal = () => setShowReceiveXRP(false);
+
   return (
     <>
       <div className="main">
@@ -33,15 +31,17 @@ function Main() {
           </Link>
           <Button
             variant="primary"
-            onClick={handleRequestXRP}
+            onClick={openReceiveModal}
           >
             <FontAwesomeIcon icon={faArrowTurnDown} />
             <span>Receive</span>
           </Button>
         </section>
+
         <section className="balance-container">
           <Balance />
         </section>
+
         <section className="transactions-container">
           <Transactions />
         </section>
@@ -49,7 +49,7 @@ function Main() {
 
       <Modal
         show={showReceiveXRP}
-        onHide={handleHideReceiveXRP}
+        onHide={closeReceiveModal}
       >
         <Modal.Header closeButton>
           <Modal.Title>Receive XRP</Modal.Title>

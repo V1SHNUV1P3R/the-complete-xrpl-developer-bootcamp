@@ -16,29 +16,20 @@ function GenerateAccount() {
   const { addAccount } = useAccounts();
   const navigate = useNavigate();
 
-  const handleGenerateAccount = () => {
+  // Step 1: create a brand new wallet.
+  // Step 2: show it to the user so they can decide whether to save it.
+  const createNewWallet = () => {
     const newWallet = Wallet.generate();
     setSeed(newWallet.seed);
     setAddress(newWallet.classicAddress);
   };
 
-  const handleSaveAccount = () => {
-    // Create the new account object
-    const account = {
-      address: address,
-      seed: seed,
-    };
-
-    // Update the application state
-    addAccount(account);
-
-    // Navigate back to the manage accounts page
+  const saveWallet = () => {
+    addAccount({ address, seed });
     navigate("/manage-account");
   };
 
-  const handleCancel = () => {
-    setSeed("");
-  };
+  const cancelSave = () => setSeed("");
 
   return (
     <div className="generate-account">
@@ -59,13 +50,13 @@ function GenerateAccount() {
           <div className="action-buttons">
             <Button
               variant="primary"
-              onClick={handleSaveAccount}
+              onClick={saveWallet}
             >
               Save to wallet
             </Button>
             <Button
               variant="secondary"
-              onClick={handleCancel}
+              onClick={cancelSave}
             >
               Cancel
             </Button>
@@ -78,13 +69,13 @@ function GenerateAccount() {
             <span>Generate Account</span>
           </h1>
           <p>
-            Clicking generate will create a new seed and rAddress, but you&rsquo;ll need to click
+            Clicking generate will create a new seed and address, but you&rsquo;ll need to click
             save to add it to your account and it won&rsquo;t become active until you send it some
             XRP.
           </p>
           <Button
             variant="primary"
-            onClick={handleGenerateAccount}
+            onClick={createNewWallet}
           >
             Generate
           </Button>

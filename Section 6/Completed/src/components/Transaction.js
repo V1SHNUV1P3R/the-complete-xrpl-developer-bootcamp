@@ -5,47 +5,33 @@ import Button from "react-bootstrap/Button";
 import "./transaction.scss";
 
 function Transaction({ transaction }) {
+  // Helper functions keep the JSX readable and make the status formatting easy to follow.
   const truncateAddress = (address) => {
     if (typeof address !== "string") return "";
     if (address.length <= 22) return address;
     return `${address.substring(0, 6)}....${address.substring(address.length - 16)}`;
   };
 
-  const transactionResult = (result) => {
-    return result === "tesSUCCESS" ? (
-      <>
-        <FontAwesomeIcon
-          icon={faThumbsUp}
-          className="status-ok"
-        />
-      </>
-    ) : (
-      <>
-        <span className="status-warning">{friendlyWarning(result)}</span>
-      </>
-    );
-  };
-
   const friendlyWarning = (message) => {
     switch (message) {
       case "tecUNFUNDED_PAYMENT":
         return "Insufficient funds";
-      // Add more warnings here over time.
       default:
-        return { message };
+        return message;
     }
   };
 
-  const explorerLink = (hash) => {
-    return (
-      <Button
-        href={`https://testnet.xrpl.org/transactions/${hash}`}
-        target="_blank"
-        className="view-on-explorer"
-      >
-        <FontAwesomeIcon icon={faArrowRight} />
-      </Button>
-    );
+  const renderStatus = (result) => {
+    if (result === "tesSUCCESS") {
+      return (
+        <FontAwesomeIcon
+          icon={faThumbsUp}
+          className="status-ok"
+        />
+      );
+    }
+
+    return <span className="status-warning">{friendlyWarning(result)}</span>;
   };
 
   return (
@@ -60,10 +46,18 @@ function Transaction({ transaction }) {
       <div className="col-9">{transaction.date.toLocaleString()}</div>
 
       <div className="col-3">Status</div>
-      <div className="col-9">{transactionResult(transaction.transactionResult)}</div>
+      <div className="col-9">{renderStatus(transaction.transactionResult)}</div>
 
       <div className="col-3"></div>
-      <div className="col-9">{explorerLink(transaction.hash)}</div>
+      <div className="col-9">
+        <Button
+          href={`https://testnet.xrpl.org/transactions/${transaction.hash}`}
+          target="_blank"
+          className="view-on-explorer"
+        >
+          <FontAwesomeIcon icon={faArrowRight} />
+        </Button>
+      </div>
     </div>
   );
 }

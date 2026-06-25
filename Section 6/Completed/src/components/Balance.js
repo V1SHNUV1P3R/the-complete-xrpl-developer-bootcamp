@@ -8,23 +8,10 @@ import "./balance.scss";
 function Balance() {
   const { balance, reserve, refreshBalance } = useAccounts();
 
-  const BalanceDisplay = () => {
-    const numericBalance = Number(balance);
-    const numericReserve = Number(reserve);
-    return isNaN(numericBalance) ? (
-      <div className="amount">-</div>
-    ) : (
-      <div className="amount">{(numericBalance - numericReserve).toLocaleString()}</div>
-    );
-  };
-
-  const ReserveDisplay = () => {
-    return <div className="reserve">Reserve: {reserve} xrp</div>;
-  };
-
-  const handleBalanceRefresh = () => {
-    refreshBalance();
-  };
+  // The visible balance is the account balance minus the reserve amount required by the ledger.
+  const numericBalance = Number(balance);
+  const numericReserve = Number(reserve);
+  const visibleBalance = Number.isNaN(numericBalance) ? "-" : (numericBalance - numericReserve).toLocaleString();
 
   return (
     <div className="balance">
@@ -32,11 +19,11 @@ function Balance() {
         Balance (XRP)
         <FontAwesomeIcon
           icon={faRefresh}
-          onClick={handleBalanceRefresh}
+          onClick={refreshBalance}
         />
       </label>
-      <BalanceDisplay />
-      <ReserveDisplay />
+      <div className="amount">{visibleBalance}</div>
+      <div className="reserve">Reserve: {reserve} xrp</div>
     </div>
   );
 }

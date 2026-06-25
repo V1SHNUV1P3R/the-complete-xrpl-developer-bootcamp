@@ -15,32 +15,25 @@ function ImportAccount() {
   const { addAccount } = useAccounts();
   const navigate = useNavigate();
 
-  const handleSeedChange = (event) => {
-    setSeed(event.target.value);
+  // Step 1: turn the family seed into a wallet.
+  // Step 2: save that wallet into the app state.
+  const createAccountFromSeed = (familySeed) => {
+    const wallet = Wallet.deriveWallet(familySeed);
+    return {
+      address: wallet.classicAddress,
+      seed: wallet.seed,
+    };
   };
 
-  const handleImportAccount = (event) => {
+  const handleSubmit = (event) => {
     event.preventDefault();
-
-    // Derive the address from the imported family seed
-    const newAccount = Wallet.deriveWallet(seed);
-
-    // Create the new account object
-    const account = {
-      address: newAccount.classicAddress,
-      seed: newAccount.seed,
-    };
-
-    // Update the application state
-    addAccount(account);
-
-    // Navigate back to the manage accounts page
+    addAccount(createAccountFromSeed(seed));
     navigate("/manage-account");
   };
 
   return (
     <div className="import-account">
-      <Form onSubmit={handleImportAccount}>
+      <Form onSubmit={handleSubmit}>
         <h1>
           <FontAwesomeIcon icon={faFileImport} />
           <span>Import Account</span>
@@ -53,7 +46,7 @@ function ImportAccount() {
           <Form.Label>Family Seed</Form.Label>
           <Form.Control
             type="text"
-            onChange={handleSeedChange}
+            onChange={(event) => setSeed(event.target.value)}
             value={seed}
             required
           ></Form.Control>
